@@ -1,0 +1,32 @@
+; *************************************************************
+; *** Scatter-Loading Description File - ETH DMA in D2 SRAM3 ***
+; *** Custom (useFile=1), set by OTA project team           ***
+; *** Reference: ST STM32CubeH7 NUCLEO-H743ZI LwIP          ***
+; *************************************************************
+
+LR_IROM1 0x08000000 0x00200000  {    ; load region size_region
+  ER_IROM1 0x08000000 0x00200000  {  ; load address = execution address
+   *.o (RESET, +First)
+   *(InRoot$$Sections)
+   .ANY (+RO)
+   .ANY (+XO)
+  }
+  RW_IRAM1 0x20000000 0x00020000  {  ; RW data
+   .ANY (+RW +ZI)
+  }
+  RW_IRAM2 0x24000000 0x00080000  {
+   *(.ota_buf)
+  }
+
+  ; ETH DMA descriptors MUST live in D2 SRAM3 (0x30040000) reachable by ETH DMA.
+  ; AC6 ignores __attribute__((at(...))), so place via sections in scatter.
+  RW_DMARxDscrTab 0x30040000 0x80  {
+   *(.RxDescripSection)
+  }
+  RW_DMATxDscrTab 0x30040080 0x80  {
+   *(.TxDescripSection)
+  }
+  memory_RX_POOL_base 0x30040200 0x3E00  {
+   *(.Rx_PoolSection)
+  }
+}

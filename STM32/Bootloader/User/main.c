@@ -4,13 +4,13 @@
   * @author  fire
   * @version V1.0
   * @date    2018-xx-xx
-  * @brief   OTA Bootloader V1.2.0 main module
+  * @brief   ��V1.2.0�汾�⽨�Ĺ���ģ��
   ******************************************************************
   * @attention
   *
-  * Platform: Wildfire STM32H743 Development Board
-  * Forum:    http://www.firebbs.cn
-  * Shop:     http://firestm32.taobao.com
+  * ʵ��ƽ̨:Ұ��  STM32H743������ 
+  * ��̳    :http://www.firebbs.cn
+  * �Ա�    :http://firestm32.taobao.com
   *
   ******************************************************************
   */  
@@ -31,8 +31,8 @@
 
 
 int flag = 0;
-int eth_inited = 0;   /* Ethernet/LwIP initialized flag (set to 1 only when entering [2] Firmware Update) */
-int qspi_inited = 0;  /* QSPI initialized flag (set to 1 on first interactive mode entry) */
+int eth_inited = 0;   /* Ethernet/LwIP inited (set 1 only in [2] Firmware Update) */
+int qspi_inited = 0;  /* QSPI inited (once, on first entry to interactive mode) */
 
 /**
   * @brief  Interactive mode: Ethernet main loop + UART menu (0-6).
@@ -40,7 +40,7 @@ int qspi_inited = 0;  /* QSPI initialized flag (set to 1 on first interactive mo
   */
 void interactive_mode(void)
 {
-    /* QSPI init: execute once on first entry to interactive mode (init-before-use principle) */
+    /* QSPI init: once, on first entry to interactive mode (init-before-use) */
     if (!qspi_inited) {
         if (BSP_QSPI_Init() == QSPI_OK) {
             printf("[QSPI] ID: 0x%06X\r\n", (unsigned)BSP_QSPI_ReadJedecID());
@@ -54,14 +54,14 @@ void interactive_mode(void)
 
     while (1)
     {
-        /* LwIP RX: process received frames when ETH IRQ set flag (only after Ethernet init) */
+        /* LwIP RX: process received frames when ETH IRQ set flag (only if ETH inited) */
         if (eth_inited && flag)
         {
             flag = 0;
             LED2_TOGGLE;
             ethernetif_input(&gnetif);
         }
-        /* LwIP timers (ARP, TCP retransmit...) (only after Ethernet init) */
+        /* LwIP timers (ARP, TCP retransmit...) (only if ETH inited) */
         if (eth_inited)
             sys_check_timeouts();
 
@@ -74,7 +74,7 @@ void interactive_mode(void)
 
             static uint32_t last_pct = 0xFFFFFFFF;
             static uint32_t last_tick = 0;
-            /* Update every ~200ms or when progress changes */
+            /* update ~every 200ms or on progress change */
             if (pct != last_pct || (HAL_GetTick() - last_tick) > 200)
             {
                 last_pct = pct;
@@ -91,13 +91,13 @@ void interactive_mode(void)
         /* OTA state machine: CRC verify / write Slot A / reset */
         OTA_Poll();
 
-        /* OTA CONFIRM state: firmware staged, waiting for user to decide whether to write to App */
+        /* OTA CONFIRM state: staged, waiting for user decision to write App */
         if (OTA_IsConfirm())
         {
             static int confirm_prompted = 0;
             if (!confirm_prompted) {
                 confirm_prompted = 1;
-                printf("\r\n[OTA] Firmware staged successfully (length %lu bytes)\r\n",
+                printf("\r\n[OTA] Firmware staged done (length %lu bytes)\r\n",
                        (unsigned long)OTA_GetReceived());
                 printf("[OTA] Write to STM32 App address (0x08100000)? (y/n): ");
             }
@@ -105,41 +105,41 @@ void interactive_mode(void)
             if (c == 'y' || c == 'Y') {
                 printf(" y\r\n");
                 if (OTA_Flash_Write() == 0) {
-                    printf("[OTA] Write complete. Use [1] to view Info / [6] to Reboot (debug mode, no auto reset)\r\n");
-                    printf("\r\nSelect (0-6): ");
-                    /* Debug: no auto NVIC_SystemReset(), allow viewing Info first */
+                    printf("[OTA] Write done -> rebooting...\r\n");
+                    HAL_Delay(50);
+                    NVIC_SystemReset();
                 } else {
-                    printf("[OTA] Write failed\r\n");
+                    printf("[OTA] Write FAILED\r\n");
                 }
                 OTA_ResetState();
                 confirm_prompted = 0;
                 printf("\r\nSelect (0-6): ");
             } else if (c == 'n' || c == 'N' || c == 27) {   /* n / ESC */
-                printf(" n\r\n[OTA] Cancelled, returning to menu (staging preserved)\r\n");
+                printf(" n\r\n[OTA] Aborted, back to menu (staged kept)\r\n");
                 OTA_ResetState();
                 confirm_prompted = 0;
                 printf("\r\nSelect (0-6): ");
             }
-            /* c==0 timeout or ignore -> continue waiting for key */
+            /* c==0 timeout or ignored -> keep waiting for key */
         }
 
         /* UART key input (non-blocking) */
         int key = UART_ReadKey_NonBlock();
         if (key != 0)
         {
-            Menu_HandleKey(key);   /* Internally prints Select (unless menu was reprinted) */
+            Menu_HandleKey(key);   /* prints Select prompt internally (unless menu reprinted) */
         }
     }
 }
 
 /**
-  * @brief  Main entry point
-  * @param  None
-  * @retval None
+  * @brief  ������
+  * @param  ��
+  * @retval ��
   */
 int main(void)
 {
-    /* Configure memory for Ethernet DMA usage */
+    /* ��ETHʹ�õ��ڴ濪������*/
     MPU_Config(); 
   
     /* Enable I-Cache */
@@ -147,26 +147,26 @@ int main(void)
 
     /* Enable D-Cache */
     SCB_EnableDCache();  
-    // Set Cache to write-through mode
+    //��Cache����write-through��ʽ
     SCB->CACR|=1<<2;
   
-    /* Configure system clock to 400 MHz */
+    /* ����ϵͳʱ��Ϊ400 MHz */
     SystemClock_Config();
 
-    /* Initialize RGB LED */
+    /* ��ʼ��RGB�ʵ� */
     LED_GPIO_Config();
 
-    /* Initialize USART1 debug mode: 115200 8-N-1 */
+    /* ��ʼ��USART1 ����ģʽΪ 115200 8-N-1 */
     DEBUG_USART_Config();
 
     /* Key GPIO (KEY1=PA0, KEY2=PC13) */
     Key_GPIO_Config();
 
-    /* Boot branch: KEY1 single press (read GPIO directly, no wait for release) -> interactive menu; otherwise normal_boot
-       QSPI / Ethernet (LwIP) are both deferred init: QSPI at interactive_mode() start, Ethernet at [2] */
+    /* Boot branch: KEY1 held (read GPIO directly, no wait for release) -> interactive menu; else normal_boot
+       QSPI / Ethernet(LwIP) both deferred: QSPI at interactive_mode() entry, Ethernet at [2] */
 
-    /* Metadata state transition + boot requirement determination (executed before KEY1 check)
-       Return: 0=enter menu, 1=need watchdog jump, 2=direct jump */
+    /* Metadata state step + boot decision (before KEY1 check)
+       returns: 0=enter menu, 1=need watchdog jump, 2=jump directly */
     int boot_req = Boot_Metadata_Step();
 
     if (HAL_GPIO_ReadPin(KEY1_GPIO_PORT, KEY1_PIN) == KEY_ON) {
@@ -177,16 +177,16 @@ int main(void)
         interactive_mode();
     } else {
         if (boot_req == 1) {
-            /* TESTING: enable IWDG(5s) then jump to App (health check start point) */
-            printf("[BOOT] Enable IWDG(5s) -> jump to App for verification\r\n");
+            /* TESTING: enable IWDG(5s) then jump to App (health-check start) */
+            printf("[BOOT] Enable IWDG(5s) -> jump to App\r\n");
             Iwdg_Enable(5000);
         }
         JumpToApp();
     }
 }/* main end */
 /**
-  * @brief  System Clock Configuration
-  *         system Clock configuration parameters:
+  * @brief  System Clock ����
+  *         system Clock ��������: 
 	*            System Clock source  = PLL (HSE)
 	*            SYSCLK(Hz)           = 480000000 (CPU Clock)
 	*            HCLK(Hz)             = 240000000 (AXI and AHBs Clock)
@@ -212,15 +212,16 @@ static void SystemClock_Config(void)
   RCC_OscInitTypeDef RCC_OscInitStruct;
   HAL_StatusTypeDef ret = HAL_OK;
   
-  /* Enable supply configuration update */
+  /*ʹ�ܹ������ø��� */
   MODIFY_REG(PWR->CR3, PWR_CR3_SCUEN, 0);
 
-  /* Configure voltage scaling before changing system frequency */
+  /* ��������ʱ��Ƶ�ʵ������ϵͳƵ��ʱ����ѹ���ڿ����Ż����ģ�
+		 ����ϵͳƵ�ʵĵ�ѹ����ֵ�ĸ��¿��Բο���Ʒ�����ֲᡣ  */
   __HAL_PWR_VOLTAGESCALING_CONFIG(PWR_REGULATOR_VOLTAGE_SCALE1);
 
   while(!__HAL_PWR_GET_FLAG(PWR_FLAG_VOSRDY)) {}
  
-  /* Enable HSE oscillator and configure HSE as PLL source */
+  /* ����HSE������ʹ��HSE��ΪԴ����PLL */
   RCC_OscInitStruct.OscillatorType = RCC_OSCILLATORTYPE_HSE;
   RCC_OscInitStruct.HSEState = RCC_HSE_ON;
   RCC_OscInitStruct.HSIState = RCC_HSI_OFF;
@@ -242,7 +243,7 @@ static void SystemClock_Config(void)
     while(1) { ; }
   }
   
-	/* Select PLL as system clock source and configure bus clock dividers */
+	/* ѡ��PLL��Ϊϵͳʱ��Դ����������ʱ�ӷ�Ƶ�� */
   RCC_ClkInitStruct.ClockType = (RCC_CLOCKTYPE_SYSCLK  | \
 																 RCC_CLOCKTYPE_HCLK    | \
 																 RCC_CLOCKTYPE_D1PCLK1 | \
@@ -264,7 +265,7 @@ static void SystemClock_Config(void)
 }
 
 /**
-  * @brief  Configure MPU
+  * @brief  ����MPU���� 
   * @param  None
   * @retval None
   */

@@ -15,8 +15,7 @@ int  Firmware_Update(void);
 void Backup_SlotA(void);
 void Restore_SlotA(void);
 void JumpToApp(void);
-void normal_boot(void);
-int  Boot_Metadata_Step(void);   /* 0=menu 1=watchdog jump 2=direct jump */
+int  Boot_Metadata_Step(void);   /* 0=選單 1=開狗跳 2=直接跳 */
 void Iwdg_Enable(uint32_t timeout_ms);
 int  Menu_HandleKey(int key);
 
